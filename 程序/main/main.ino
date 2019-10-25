@@ -1,3 +1,5 @@
+
+
 /*     包含库      */
 #include <Wire.h>
 // 包含卡尔曼滤波库
@@ -57,7 +59,7 @@ bool FALLDOWN;
     // {"P":0,"A": [33,-0.004],"S": 0.0625}
     // {"UP":1,"Y":10,"X":0,"A": [33,-0.004],"S": 0.0625}
 double  P_angle = 33, D_angle = -0.004;
-// 这里的初始角度在加入速度环后就不重要了，速度环会纠正平衡角度的偏差
+    // 这里的初始角度在加入速度环后就不重要了，速度环会纠正平衡角度的偏差
 double  angle_setpoint = BALANCE_ANGLE, angle_output;
 uint32_t angle_PID_timer = 0;
     // 速度环数据
@@ -101,6 +103,8 @@ void angle_PID_compute(void);
 void speed_PID_compute(void);
     // 蓝牙串口通信
 void BT_uart(void);
+
+
 
 /***************Setup函数**********************/
 void setup() {
