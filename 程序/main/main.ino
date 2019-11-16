@@ -1,18 +1,15 @@
+// 代码重构，常量全部大写
 
 
-/*     包含库      */
+#include <WiFi.h>
 #include <Wire.h>
-// 包含卡尔曼滤波库
 #include <Kalman.h>
-// 包含编码器库
 #include <Encoder.h>
-// 包含蓝牙串口库
 #include <BluetoothSerial.h>
-// 包含Json库
 #include <ArduinoJson.h>
 /*******************调试宏定义********************/
-// #define Print_Value
-// #define ADJUST_PID
+#define WifiPrintValue
+#define ADJUST_PID
 #define Motor_enable
 /*******************常量定义********************/
 #define L_Motor 0
@@ -59,12 +56,12 @@ bool FALLDOWN;
     // {"P":0,"A": [33,-0.004],"S": 0.0625}
     // {"UP":1,"Y":10,"X":0,"A": [33,-0.004],"S": 0.0625}
 double  P_angle = 33, D_angle = -0.004;
-    // 这里的初始角度在加入速度环后就不重要了，速度环会纠正平衡角度的偏差
+// 这里的初始角度在加入速度环后就不重要了，速度环会纠正平衡角度的偏差
 double  angle_setpoint = BALANCE_ANGLE, angle_output;
 uint32_t angle_PID_timer = 0;
     // 速度环数据
-double  P_speed = 0.0625;//, I_speed = 0;
-double  speed_setpoint = 0, speed_output;
+double  P_speed = 0.0625, I_speed = 0;
+double  speed_setpoint = 0, speed_output, speed, speed_integral;
 uint32_t speed_PID_timer = 0;
     // 方向环数据
 double  turn_output;
@@ -75,7 +72,7 @@ int output_L, output_R;
 Kalman kalmanY;
 double accX, accY, accZ;
 double gyroY, gyroZ;
-double kalAngleY;;
+double kalAngleY;
 int16_t tempRaw;
 uint32_t timer;
 uint8_t i2cData[14];
@@ -84,96 +81,49 @@ long encoder_L, encoder_R;
     // 构造编码器对象
 Encoder knobRight(Encoder_A_1,Encoder_A_2);
 Encoder knobLeft(Encoder_B_1,Encoder_B_2);
+/********************WIFI************************/
+const char* ssid = "Flutter_app";
+const char* password =  "12345678";
+WiFiServer server; //声明服务器对象
+IPAddress local_IP(192, 168, 43, 101);
+IPAddress gateway(192, 168, 43, 1);
+IPAddress subnet(255, 255, 255, 0);
+WiFiClient client;
 /********************蓝牙声明************************/
-    // 构造蓝牙串口对象
 BluetoothSerial SerialBT;
 /******************Json************************/
-    // arduinoJSON助理 https://arduinojson.org/v6/assistant/
-    // 不会用arduinoJson的同学可以看我博客 http://vincc.me/267/
 DynamicJsonDocument doc(JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(5) + 20);
 /***************主要功能函数声明**********************/
-    // MPU6050初始化函数
 void MPU6050_init(void);
-    // 电机驱动函数
+void blueInit(void);
+void ioInit(void);
+void wifiInit(void);
 void Motor(char LR,int S);
-    // MPU6050数据获取和卡尔曼滤波函数
-void IMU_fillter(void);
-    // PID计算
+void IMU_fillter(void);     // MPU6050数据获取和卡尔曼滤波函数
 void angle_PID_compute(void);
 void speed_PID_compute(void);
-    // 蓝牙串口通信
 void BT_uart(void);
-
-
-
 /***************Setup函数**********************/
 void setup() {
-    // 设置波特率
-    Serial.begin(115200);
-    // 蓝牙设备名称
-    SerialBT.begin("Balance-Robot");
-/********MPU6050相关********/
     MPU6050_init();
-/*********电机相关*********/
-    // 设置IO口模式
-    pinMode(AIN1,OUTPUT);
-    pinMode(AIN2,OUTPUT);
-    pinMode(BIN1,OUTPUT);
-    pinMode(BIN2,OUTPUT);
-    pinMode(STBY,OUTPUT);
-    // 设置并绑定通道和引脚
-    ledcSetup(A_Channel, Freq, Resolution);
-    ledcSetup(B_Channel, Freq, Resolution);
-    ledcAttachPin(PWMA, A_Channel);
-    ledcAttachPin(PWMB, B_Channel);
-    // 开启模块驱动功能
-    digitalWrite(STBY,HIGH);
-/*********其它*********/
-    // 默认不启动，等待蓝牙连接唤醒
-    FALLDOWN = true;
-    // 输出初始化成功信息
-    SerialBT.println("Setup is OK!!!");
+    blueInit();
+    ioInit();
+#ifdef WifiPrintValue
+    wifiInit();
+#endif
+
+    FALLDOWN = true;        // 默认不启动，等待蓝牙连接唤醒
 }
 
-
-
-/***************Loop函数********************/
 void loop(){
-/***********检查是否摔倒*********/
 #ifdef Motor_enable
-    if ((kalAngleY > FALLDOWN_ANGLE || kalAngleY < - FALLDOWN_ANGLE) || FALLDOWN){
-        // 关电机
-        Motor(L_Motor, 0);
-        Motor(R_Motor, 0);
-        output_L = 0;
-        output_R = 0;
-        angle_setpoint = BALANCE_ANGLE;
-        speed_setpoint = 0;
-        turn_output = 0;
-        // 设置摔倒标志
-        FALLDOWN = true;
-        // 等待蓝牙指令
-        while (FALLDOWN) {
-            BT_uart();
-        }
-    }
+    isFalldown();
 #endif
-/***********控制计算************/
-    // 获取角度数据
     IMU_fillter();
-    // 蓝牙串口控制
     BT_uart();
-    // 速度和角度环的计算
     speed_PID_compute();
     angle_PID_compute();
-/***********调试输出************/
-#ifdef Print_Value
-    if (micros()-tmp_timer>300000) {
-        // 在这里可以随意添加想看的输出值
-        // 建议使用串口绘图器观察输出值
-        // 有利于排除错误
-        Serial.println(kalAngleY);
-        tmp_timer=micros();
-    }
+#ifdef WifiPrintValue
+    wifiPrintValue();
 #endif
 }

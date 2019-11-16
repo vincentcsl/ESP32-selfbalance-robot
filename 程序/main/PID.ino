@@ -1,5 +1,5 @@
 void angle_PID_compute(void){
-    if (micros() - angle_PID_timer > 10000){
+    if (micros() - angle_PID_timer > 12000){
         /***************角度PID计算**************/
         double angle_error = kalAngleY - angle_setpoint ;
         angle_output = P_angle * angle_error + D_angle * gyroY;
@@ -33,8 +33,9 @@ void angle_PID_compute(void){
 }
 
 void speed_PID_compute(void){
-    if (micros() - speed_PID_timer > 40000){
-        double speed_error = (knobLeft.read() - knobRight.read()) * 0.5 - speed_setpoint ;
+    if (micros() - speed_PID_timer > 50000){
+        speed = knobLeft.read() - knobRight.read();
+        double speed_error = (speed) * 0.5 - speed_setpoint ;
         // speed_integral += speed_error;
         speed_output = P_speed * speed_error;
         angle_setpoint = speed_output;// + I_speed * speed_integral;

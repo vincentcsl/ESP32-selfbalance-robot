@@ -40,6 +40,7 @@ void BT_uart(){
             if (doc.containsKey("A")) {
                 P_angle = doc["A"][0];
                 D_angle = doc["A"][1];
+                // Serial.println("Do!!!");
             }
             if (doc.containsKey("S")) {
                 P_speed = doc["S"];
